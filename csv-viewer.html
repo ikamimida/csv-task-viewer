@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализатор задач из CSV</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 1800px; margin: 0 auto; }
+        h1 { color: #1a1a2e; margin-bottom: 20px; font-size: 24px; }
+        
+        .controls { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        
+        .file-controls { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee; align-items: flex-end; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-weight: 600; font-size: 13px; color: #555; }
+        
+        input[type="file"] { padding: 8px; border: 1px solid #ddd; border-radius: 6px; max-width: 350px; }
+        input[type="text"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; width: 60px; text-align: center; }
+        
+        select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; min-width: 150px; }
+        
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        button:hover { background: #45a049; transform: translateY(-1px); }
+        button.secondary { background: #2196F3; }
+        button.secondary:hover { background: #1976D2; }
+        button.purple { background: #9C27B0; }
+        button.purple:hover { background: #7B1FA2; }
+        
+        .stats { display: flex; gap: 30px; font-size: 14px; color: #666; margin: 15px 0; }
+        .stats strong { color: #1a1a2e; }
+        
+        .chart-section { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .chart-controls { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; align-items: flex-end; }
+        .chart-container { position: relative; height: 400px; }
+        
+        .filters-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px; }
+        .filter-item select { width: 100%; }
+        
+        .table-wrapper { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        
+        thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        thead th { padding: 14px 12px; text-align: left; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; position: relative; }
+        thead th:hover { background: rgba(255,255,255,0.1); }
+        thead th .sort-indicator { position: absolute; right: 8px; font-size: 11px; opacity: 0.7; }
+        
+        tbody tr { border-bottom: 1px solid #eee; transition: background 0.2s; }
+        tbody tr:hover { background: #f8f9fa; }
+        tbody td { padding: 10px 12px; font-size: 13px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
+        .pagination { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: white; border-top: 1px solid #eee; border-radius: 0 0 12px 12px; }
+        .pagination button { padding: 6px 14px; font-size: 13px; background: white; color: #333; border: 1px solid #ddd; }
+        .pagination button:hover { background: #f0f0f0; }
+        .pagination button.active { background: #667eea; color: white; border-color: #667eea; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination span { color: #666; font-size: 13px; }
+        
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .hidden { display: none !important; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+        .empty-state h3 { margin-bottom: 10px; color: #666; }
+        
+        @media (max-width: 1200px) { .filters-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 900px) { .filters-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .filters-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Анализатор задач</h1>
+    
+    <div class="controls">
+        <div class="file-controls">
+            <div class="control-group">
+                <label>Файл CSV:</label>
+                <input type="file" id="csvFile" accept=".csv">
+            </div>
+            <div class="control-group">
+                <label>Разделитель:</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="separator" value=";" maxlength="1" style="width: 50px;">
+                    <select id="separatorPreset" onchange="updateSeparator()">
+                        <option value=";">Точка с запятой (;)</option>
+                        <option value=",">Запятая (,)</option>
+                        <option value="	">Tab</option>
+                    </select>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button onclick="loadFile()" class="secondary">Загрузить</button>
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button onclick="loadDefaultFile()">Загрузить "Новая таблица - Лист1.csv"</button>
+            </div>
+        </div>
+        
+        <div class="stats hidden" id="stats">
+            <span>Всего записей: <strong id="totalCount">0</strong></span>
+            <span>Показано: <strong id="shownCount">0</strong></span>
+            <span>Страница: <strong id="pageInfo">1</strong></span>
+        </div>
+        
+        <div class="filters-grid hidden" id="filtersGrid"></div>
+        
+        <button onclick="resetFilters()" class="purple">Сбросить фильтры</button>
+    </div>
+    
+    <div class="chart-section hidden" id="chartSection">
+        <h3 style="margin-bottom: 15px;">Графики</h3>
+        <div class="chart-controls">
+            <div class="control-group">
+                <label>Столбец для анализа:</label>
+                <select id="chartColumn"></select>
+            </div>
+            <div class="control-group">
+                <label>Тип графика:</label>
+                <select id="chartType">
+                    <option value="bar">Столбчатая диаграмма</option>
+                    <option value="horizontalBar">Горизонтальная</option>
+                    <option value="pie">Круговая</option>
+                    <option value="doughnut">Бублик</option>
+                    <option value="line">Линейный</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button onclick="renderChart()">Обновить график</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="dataChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="table-wrapper" id="tableWrapper">
+        <div class="empty-state" id="emptyState">
+            <h3>Выберите CSV файл</h3>
+            <p>Загрузите файл для просмотра данных</p>
+        </div>
+        <table id="dataTable" class="hidden">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+    
+    <div class="pagination hidden" id="pagination">
+        <button onclick="changePage(-5)">-5</button>
+        <button onclick="changePage(-1)" id="prevBtn">Предыдущая</button>
+        <span id="pageNumbers"></span>
+        <button onclick="changePage(1)" id="nextBtn">Следующая</button>
+        <button onclick="changePage(5)">+5</button>
+    </div>
+</div>
+
+<script>
+let originalData = [], filteredData = [], headers = [];
+let currentPage = 1, sortColumn = '', sortDirection = 'asc';
+let chart = null;
+const rowsPerPage = 50;
+
+const separatorInput = document.getElementById('separator');
+const separatorPreset = document.getElementById('separatorPreset');
+
+separatorPreset.addEventListener('change', () => {
+    separatorInput.value = separatorPreset.value;
+});
+
+function updateSeparator() {
+    separatorInput.value = separatorPreset.value;
+}
+
+function loadFile() {
+    const file = document.getElementById('csvFile').files[0];
+    if (!file) { alert('Выберите файл CSV'); return; }
+    const reader = new FileReader();
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file);
+}
+
+function loadDefaultFile() {
+    fetch('Новая таблица - Лист1.csv')
+        .then(r => r.text())
+        .then(parseCSV)
+        .catch(() => alert('Файл не найден в той же папке'));
+}
+
+function parseCSV(content) {
+    try {
+        const sep = separatorInput.value || ';';
+        const lines = content.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) throw new Error('Файл пустой');
+        
+        headers = parseLine(lines[0], sep);
+        originalData = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseLine(lines[i], sep);
+            if (values.length > 0) {
+                const row = {};
+                headers.forEach((h, idx) => row[h.trim()] = (values[idx] || '').trim());
+                originalData.push(row);
+            }
+        }
+        
+        initApp();
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+function parseLine(line, sep) {
+    const result = [], quotes = /"/g;
+    let inQuotes = false, val = '';
+    for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') inQuotes = !inQuotes;
+        else if (c === sep && !inQuotes) { result.push(val); val = ''; }
+        else val += c;
+    }
+    result.push(val);
+    return result.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"'));
+}
+
+function initApp() {
+    filteredData = [...originalData];
+    currentPage = 1;
+    sortColumn = '';
+    sortDirection = 'asc';
+    
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('dataTable').classList.remove('hidden');
+    document.getElementById('stats').classList.remove('hidden');
+    document.getElementById('chartSection').classList.remove('hidden');
+    document.getElementById('pagination').classList.remove('hidden');
+    
+    buildFilters();
+    initChartControls();
+    renderTable();
+    renderChart();
+}
+
+function buildFilters() {
+    const grid = document.getElementById('filtersGrid');
+    grid.innerHTML = '';
+    grid.classList.remove('hidden');
+    
+    headers.forEach(h => {
+        const clean = h.replace(/["'`,\s]/g, '').trim();
+        if (!clean) return;
+        
+        const unique = [...new Set(originalData.map(r => r[h] || ''))].filter(v => v).sort();
+        if (unique.length === 0) return;
+        
+        const div = document.createElement('div');
+        div.className = 'filter-item';
+        div.innerHTML = `
+            <label>${h}:</label>
+            <select id="f_${clean}" onchange="applyFilters()" multiple size="4">
+                <option value="">Все</option>
+                ${unique.map(v => `<option value="${v}">${v}</option>`).join('')}
+            </select>
+        `;
+        grid.appendChild(div);
+    });
+}
+
+function applyFilters() {
+    filteredData = originalData.filter(row => {
+        for (const h of headers) {
+            const clean = h.replace(/["'`,\s]/g, '').trim();
+            const sel = document.getElementById('f_' + clean);
+            if (!sel) continue;
+            const vals = Array.from(sel.selectedOptions).map(o => o.value);
+            if (vals.length && !vals.includes('')) {
+                if (!vals.includes(row[h])) return false;
+            }
+        }
+        return true;
+    });
+    currentPage = 1;
+    renderTable();
+    renderChart();
+}
+
+function resetFilters() {
+    document.querySelectorAll('.filter-item select').forEach(s => s.selectedIndex = 0);
+    filteredData = [...originalData];
+    currentPage = 1;
+    sortColumn = '';
+    sortDirection = 'asc';
+    renderTable();
+    renderChart();
+}
+
+function sortData(col) {
+    if (sortColumn === col) sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    else { sortColumn = col; sortDirection = 'asc'; }
+    
+    filteredData.sort((a, b) => {
+        let va = a[col] || '', vb = b[col] || '';
+        if (!isNaN(va) && !isNaN(vb)) return sortDirection === 'asc' ? va - vb : vb - va;
+        return sortDirection === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    currentPage = 1;
+    renderTable();
+}
+
+function renderTable() {
+    const thead = document.getElementById('tableHead');
+    const tbody = document.getElementById('tableBody');
+    
+    const start = (currentPage - 1) * rowsPerPage;
+    const pageData = filteredData.slice(start, start + rowsPerPage);
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    
+    thead.innerHTML = '<tr>' + headers.map(h => {
+        const clean = h.replace(/["'`,\s]/g, '').trim();
+        const ind = sortColumn === h ? (sortDirection === 'asc' ? '▲' : '▼') : '';
+        return `<th onclick="sortData('${h}')">${h}<span class="sort-indicator">${ind}</span></th>`;
+    }).join('') + '</tr>';
+    
+    tbody.innerHTML = pageData.map(row => 
+        '<tr>' + headers.map(h => `<td title="${row[h] || ''}">${row[h] || ''}</td>`).join('') + '</tr>'
+    ).join('');
+    
+    document.getElementById('totalCount').textContent = originalData.length;
+    document.getElementById('shownCount').textContent = filteredData.length;
+    document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+    
+    document.getElementById('prevBtn').disabled = currentPage <= 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+    
+    const nums = document.getElementById('pageNumbers');
+    let pages = [];
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+        pages.push(`<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`);
+    }
+    nums.innerHTML = pages.join('');
+}
+
+function goPage(p) {
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    if (p >= 1 && p <= totalPages) { currentPage = p; renderTable(); }
+}
+
+function changePage(delta) { goPage(currentPage + delta); }
+
+function initChartControls() {
+    const sel = document.getElementById('chartColumn');
+    sel.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+}
+
+function renderChart() {
+    const col = document.getElementById('chartColumn').value;
+    const type = document.getElementById('chartType').value;
+    if (!col || filteredData.length === 0) return;
+    
+    const counts = {};
+    filteredData.forEach(r => { const v = r[col] || '(пусто)'; counts[v] = (counts[v] || 0) + 1; });
+    
+    const labels = Object.keys(counts);
+    const data = Object.values(counts);
+    const colors = labels.map((_, i) => `hsl(${(i * 360 / labels.length) % 360}, 70%, 50%)`);
+    
+    if (chart) chart.destroy();
+    
+    chart = new Chart(document.getElementById('dataChart'), {
+        type: type,
+        data: {
+            labels: labels,
+            datasets: [{ label: col, data: data, backgroundColor: colors, borderColor: colors.map(c => c.replace('50%', '40%')), borderWidth: 1 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { title: { display: true, text: `${col} (${filteredData.length} записей)` }, legend: { display: type !== 'bar' && type !== 'horizontalBar' } },
+            scales: type === 'horizontalBar' ? { x: { beginAtZero: true } } : { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+document.getElementById('csvFile').addEventListener('change', loadFile);
+</script>
+</body>
+</html>
