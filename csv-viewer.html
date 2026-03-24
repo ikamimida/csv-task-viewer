@@ -32,9 +32,13 @@
         .stats { display: flex; gap: 30px; font-size: 14px; color: #666; margin: 15px 0; }
         .stats strong { color: #1a1a2e; }
         
-        .chart-section { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        
+        .chart-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .chart-section h3 { margin-bottom: 15px; color: #333; font-size: 16px; }
+        .chart-container { position: relative; height: 300px; }
+        
         .chart-controls { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; align-items: flex-end; }
-        .chart-container { position: relative; height: 400px; }
         
         .filters-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px; }
         .filter-item select { width: 100%; }
@@ -66,6 +70,7 @@
         @media (max-width: 1200px) { .filters-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 900px) { .filters-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 600px) { .filters-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -129,11 +134,29 @@
             </div>
             <div class="control-group">
                 <label>&nbsp;</label>
-                <button onclick="renderChart()">Обновить график</button>
+                <button onclick="renderAllCharts()">Обновить графики</button>
             </div>
         </div>
-        <div class="chart-container">
-            <canvas id="dataChart"></canvas>
+    </div>
+    
+    <div class="charts-grid hidden" id="chartsGrid">
+        <div class="chart-section">
+            <h3>Столбчатая диаграмма</h3>
+            <div class="chart-container">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-section">
+            <h3>Круговая диаграмма</h3>
+            <div class="chart-container">
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-section" style="grid-column: 1 / -1;">
+            <h3>Линейный график</h3>
+            <div class="chart-container" style="height: 350px;">
+                <canvas id="lineChart"></canvas>
+            </div>
         </div>
     </div>
     
@@ -160,7 +183,7 @@
 <script>
 let originalData = [], filteredData = [], headers = [];
 let currentPage = 1, sortColumn = '', sortDirection = 'asc';
-let chart = null;
+let barChart = null, pieChart = null, lineChart = null;
 const rowsPerPage = 50;
 
 const separatorInput = document.getElementById('separator');
@@ -236,12 +259,13 @@ function initApp() {
     document.getElementById('dataTable').classList.remove('hidden');
     document.getElementById('stats').classList.remove('hidden');
     document.getElementById('chartSection').classList.remove('hidden');
+    document.getElementById('chartsGrid').classList.remove('hidden');
     document.getElementById('pagination').classList.remove('hidden');
     
     buildFilters();
     initChartControls();
     renderTable();
-    renderChart();
+    renderAllCharts();
 }
 
 function buildFilters() {
@@ -284,7 +308,7 @@ function applyFilters() {
     });
     currentPage = 1;
     renderTable();
-    renderChart();
+    renderAllCharts();
 }
 
 function resetFilters() {
@@ -294,7 +318,7 @@ function resetFilters() {
     sortColumn = '';
     sortDirection = 'asc';
     renderTable();
-    renderChart();
+    renderAllCharts();
 }
 
 function sortData(col) {
@@ -355,9 +379,17 @@ function initChartControls() {
     sel.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
 }
 
-function renderChart() {
+function generateColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+        colors.push(`hsl(${(i * 360 / Math.max(count, 1)) % 360}, 70%, 50%)`);
+    }
+    return colors;
+}
+
+function renderAllCharts() {
     const col = document.getElementById('chartColumn').value;
-    const type = document.getElementById('chartType').value;
+    const customType = document.getElementById('chartType').value;
     if (!col || filteredData.length === 0) return;
     
     const counts = {};
@@ -365,20 +397,53 @@ function renderChart() {
     
     const labels = Object.keys(counts);
     const data = Object.values(counts);
-    const colors = labels.map((_, i) => `hsl(${(i * 360 / labels.length) % 360}, 70%, 50%)`);
+    const colors = generateColors(labels.length);
+    const borderColors = colors.map(c => c.replace('50%', '40%'));
     
-    if (chart) chart.destroy();
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            title: { display: true, text: `${col} (${filteredData.length} записей)`, font: { size: 14 } },
+            legend: { display: true, position: 'bottom' }
+        }
+    };
     
-    chart = new Chart(document.getElementById('dataChart'), {
-        type: type,
+    if (barChart) barChart.destroy();
+    barChart = new Chart(document.getElementById('barChart'), {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Количество', data: data, backgroundColor: colors, borderColor: borderColors, borderWidth: 1 }] },
+        options: { ...commonOptions, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+    
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(document.getElementById('pieChart'), {
+        type: 'pie',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderColor: '#fff', borderWidth: 2 }] },
+        options: { ...commonOptions }
+    });
+    
+    if (lineChart) lineChart.destroy();
+    lineChart = new Chart(document.getElementById('lineChart'), {
+        type: 'line',
         data: {
             labels: labels,
-            datasets: [{ label: col, data: data, backgroundColor: colors, borderColor: colors.map(c => c.replace('50%', '40%')), borderWidth: 1 }]
+            datasets: [{
+                label: 'Количество',
+                data: data,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.3,
+                fill: true,
+                pointBackgroundColor: 'rgb(75, 192, 192)',
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { title: { display: true, text: `${col} (${filteredData.length} записей)` }, legend: { display: type !== 'bar' && type !== 'horizontalBar' } },
-            scales: type === 'horizontalBar' ? { x: { beginAtZero: true } } : { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            ...commonOptions,
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            plugins: { ...commonOptions.plugins, legend: { display: false } }
         }
     });
 }
