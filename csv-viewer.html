@@ -380,9 +380,9 @@ function initChartControls() {
 
 function generateColors(count) {
     const pastelColors = [
-        '#7FB3D5', '#76D7C4', '#F9E79F', '#F5B7B1', '#D7BDE2',
-        '#A9DFBF', '#FAD7A0', '#D5DBDB', '#AED6F1', '#D5F5E3',
-        '#FCF3CF', '#FADBD8', '#E8DAEF', '#FDEDEC', '#E2EFDA'
+        '#A8D8EA', '#AA96DA', '#FCBAD3', '#FFFFD2', '#B5EAD7',
+        '#C7CEEA', '#FFDAC1', '#E2F0CB', '#FFB7B2', '#BEEDFF',
+        '#E6BBF8', '#B5EAD7', '#FFDAB9', '#C9E4DE', '#D4F1F4'
     ];
     const colors = [];
     for (let i = 0; i < count; i++) {
@@ -435,11 +435,11 @@ function renderAllCharts() {
             datasets: [{
                 label: 'Количество',
                 data: data,
-                borderColor: '#5DADE2',
-                backgroundColor: 'rgba(93, 173, 226, 0.2)',
+                borderColor: '#A8D8EA',
+                backgroundColor: 'rgba(168, 216, 234, 0.3)',
                 tension: 0.3,
                 fill: true,
-                pointBackgroundColor: '#5DADE2',
+                pointBackgroundColor: '#A8D8EA',
                 pointRadius: 5,
                 pointHoverRadius: 7
             }]
