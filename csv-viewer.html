@@ -379,9 +379,14 @@ function initChartControls() {
 }
 
 function generateColors(count) {
+    const pastelColors = [
+        '#7FB3D5', '#76D7C4', '#F9E79F', '#F5B7B1', '#D7BDE2',
+        '#A9DFBF', '#FAD7A0', '#D5DBDB', '#AED6F1', '#D5F5E3',
+        '#FCF3CF', '#FADBD8', '#E8DAEF', '#FDEDEC', '#E2EFDA'
+    ];
     const colors = [];
     for (let i = 0; i < count; i++) {
-        colors.push(`hsl(${(i * 360 / Math.max(count, 1)) % 360}, 70%, 50%)`);
+        colors.push(pastelColors[i % pastelColors.length]);
     }
     return colors;
 }
@@ -397,7 +402,7 @@ function renderAllCharts() {
     const labels = Object.keys(counts);
     const data = Object.values(counts);
     const colors = generateColors(labels.length);
-    const borderColors = colors.map(c => c.replace('50%', '40%'));
+    const borderColors = colors;
     
     const commonOptions = {
         responsive: true,
@@ -430,11 +435,11 @@ function renderAllCharts() {
             datasets: [{
                 label: 'Количество',
                 data: data,
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: '#5DADE2',
+                backgroundColor: 'rgba(93, 173, 226, 0.2)',
                 tension: 0.3,
                 fill: true,
-                pointBackgroundColor: 'rgb(75, 192, 192)',
+                pointBackgroundColor: '#5DADE2',
                 pointRadius: 5,
                 pointHoverRadius: 7
             }]
